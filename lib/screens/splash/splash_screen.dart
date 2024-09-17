@@ -1,179 +1,41 @@
-// Copyright (C) 2019 - present Instructure, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, version 3 of the License.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 import 'dart:math';
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_parent/l10n/app_localizations.dart';
-import 'package:flutter_parent/network/utils/api_prefs.dart';
-import 'package:flutter_parent/router/panda_router.dart';
-import 'package:flutter_parent/screens/splash/splash_screen_interactor.dart';
-import 'package:flutter_parent/utils/common_widgets/canvas_loading_indicator.dart';
-import 'package:flutter_parent/utils/common_widgets/masquerade_ui.dart';
-import 'package:flutter_parent/utils/quick_nav.dart';
-import 'package:flutter_parent/utils/service_locator.dart';
+import 'package:vector_math/vector_math.dart' as Vector;
 
 class SplashScreen extends StatefulWidget {
-  final String? qrLoginUrl;
-
-  SplashScreen({this.qrLoginUrl, super.key});
+  SplashScreen({super.key});
 
   @override
   _SplashScreenState createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  Future<SplashScreenData?>? _dataFuture;
-  Future<int>? _cameraFuture;
-
-  // Controller and animation used on the loading indicator for the 'zoom out' effect immediately before routing
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
-  late String _route;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInBack);
-    _animation.addListener(_animationListener);
+    _controller.forward();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!ApiPrefs.isLoggedIn() && widget.qrLoginUrl == null) {
-      // If they aren't logged in or logging in with QR, route to login screen
-      if (_cameraFuture == null) {
-        _cameraFuture = locator<SplashScreenInteractor>().getCameraCount();
-      }
-
-      return FutureBuilder(
-          future: _cameraFuture,
-          builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
-            if (snapshot.hasData || snapshot.hasError) {
-              // Even if the camera count fails, we don't want to trap the user on splash
-              _navigate(PandaRouter.login());
-            }
-
-            return _defaultBody(context);
-          });
-    } else {
-      if (_dataFuture == null) {
-        _dataFuture = locator<SplashScreenInteractor>().getData(qrLoginUrl: widget.qrLoginUrl);
-      }
-
-      return Scaffold(
-        backgroundColor: Theme.of(context).primaryColor,
-        body: FutureBuilder(
-          future: _dataFuture,
-          builder: (BuildContext context, AsyncSnapshot<SplashScreenData?> snapshot) {
-            if (snapshot.hasData) {
-              if (snapshot.data!.isObserver || snapshot.data!.canMasquerade) {
-                _navigateToDashboardOrAup();
-              } else {
-                // User is not an observer and cannot masquerade. Show the not-a-parent screen.
-                _navigate(PandaRouter.notParent());
-              }
-            } else if (snapshot.hasError) {
-              if (snapshot.error is QRLoginError) {
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => Navigator.pop(context, L10n(context).loginWithQRCodeError));
-              } else {
-                // On error, proceed without pre-fetched student list
-                _navigateToDashboardOrAup();
-              }
-            }
-            return Container(
-              child: Center(
-                child: ScaleTransition(
-                    scale: Tween<double>(begin: 1.0, end: 0.0).animate(_animation),
-                    child: const CanvasLoadingIndicator()),
-              ),
-            );
-          },
-        ),
-      );
-    }
-  }
-
-  Widget _defaultBody(BuildContext cont) {
     return Scaffold(
-        backgroundColor: Theme.of(context).primaryColor,
-        body: Container(
-          child: Center(
-            child: ScaleTransition(
-                scale: Tween<double>(begin: 1.0, end: 0.0).animate(_animation), child: const CanvasLoadingIndicator()),
-          ),
-        ));
-  }
-
-  _navigate(String route) {
-    MasqueradeUI.of(context)?.refresh();
-    _route = route;
-    _controller.forward(); // Start the animation, we'll navigate when it finishes
-  }
-
-  _navigateToDashboardOrAup() {
-    locator<SplashScreenInteractor>()
-        .isTermsAcceptanceRequired()
-        .then((aupRequired) => {
-      if (aupRequired == true) {
-        _navigate(PandaRouter.aup())
-      }
-      else {
-        _navigate(PandaRouter.dashboard())
-      }
-    });
-  }
-
-  _animationListener() {
-    if (_animation.status == AnimationStatus.completed) {
-      // Use a custom page route for the circle reveal animation
-      locator<QuickNav>().pushRouteWithCustomTransition(
-        context,
-        _route,
-        true,
-        Duration(milliseconds: 500),
-        (
-          context,
-          animation,
-          secondaryAnimation,
-          child,
-        ) {
-          return ScaleTransition(
-            scale: Tween<double>(
-              begin: 2.0,
-              end: 1.0,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutQuad,
-            )),
-            child: _CircleClipTransition(
-              child: child,
-              scale: Tween<double>(
-                begin: 0.0,
-                end: 1.0,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeInExpo,
-              )),
-            ),
-          );
-        },
-      );
-    }
+      backgroundColor: Colors.white,
+      body: Center(
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 2.0, end: 1.5).animate(_animation),
+          child: const CanvasLoadingIndicator(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -183,45 +45,124 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 }
 
-class _CircleClipTransition extends AnimatedWidget {
-  const _CircleClipTransition({
-    required Animation<double> scale,
-    this.child,
-    super.key
-  })  : super(listenable: scale);
+class CanvasLoadingIndicator extends StatefulWidget {
+  const CanvasLoadingIndicator({
+    this.size = 48,
+    this.color = Colors.red,
+    super.key,
+  });
 
-  Animation<double> get animation => listenable as Animation<double>;
+  final double size;
+  final Color color;
 
-  final Widget? child;
+  @override
+  _CanvasLoadingIndicatorState createState() => _CanvasLoadingIndicatorState();
+}
+
+class _CanvasLoadingIndicatorState extends State<CanvasLoadingIndicator>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  late _CanvasLoadingIndicatorPainter _painter;
+
+  @override
+  void initState() {
+    _controller = AnimationController(vsync: this);
+    _animation =
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOutQuad);
+    _controller.repeat(period: Duration(milliseconds: 600));
+    _painter = _CanvasLoadingIndicatorPainter(
+      _animation,
+      widget.color,
+    );
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) => ClipPath(
-        clipper: _CircleClipper(animation.value),
-        child: child,
+    return CustomPaint(
+      painter: _painter,
+      child: SizedBox(
+        width: widget.size,
+        height: widget.size,
       ),
     );
   }
-}
-
-class _CircleClipper extends CustomClipper<Path> {
-  final double animationValue;
-
-  _CircleClipper(this.animationValue);
 
   @override
-  Path getClip(Size size) {
-    return Path()
-      ..addOval(
-        Rect.fromCircle(
-          center: size.center(Offset.zero),
-          radius: animationValue * sqrt(pow(size.width, 2) + pow(size.height, 2)) / 2,
-        ),
-      );
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
+class _CanvasLoadingIndicatorPainter extends CustomPainter {
+  _CanvasLoadingIndicatorPainter(this.animation, Color color)
+      : super(repaint: animation) {
+    _circlePaint = Paint()..color = color;
+  }
+
+  static const fractionSpawnPointRadius = 0.31;
+  static const fractionMaxCircleRadius = 0.29;
+  static const fractionInnerRingRadius = 1 / 3.0;
+  static const circleCount = 8;
+
+  final Animation<double> animation;
+  double _lastProgress = -1.0;
+  int _iteration = 0;
+  late Paint _circlePaint;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (animation.value < _lastProgress) _iteration++;
+    _lastProgress = animation.value;
+
+    Path clipPath = Path();
+    clipPath.addOval(Rect.fromPoints(
+        size.topLeft(Offset.zero), size.bottomRight(Offset.zero)));
+    canvas.clipPath(clipPath);
+
+    var offset = 360.0 / circleCount;
+    if ((_iteration + 1) % 4 != 0) offset = -offset;
+
+    var center = size.center(Offset.zero);
+    var maxRingRadius = center.dx;
+    var spawnPointRadius = maxRingRadius * fractionSpawnPointRadius;
+    var maxCircleRadius = maxRingRadius * fractionMaxCircleRadius;
+
+    void _drawCircle(
+        double radius, double angleRadians, double distanceFromCenter) {
+      double x = center.dx + distanceFromCenter * cos(angleRadians);
+      double y = center.dy + distanceFromCenter * sin(angleRadians);
+      canvas.drawCircle(Offset(x, y), radius, _circlePaint);
+    }
+
+    void _drawCircleRing(double angleOffset, double growthPercent) {
+      double radius = growthPercent * maxCircleRadius;
+      double ringRadius = spawnPointRadius +
+          (growthPercent * (maxRingRadius - spawnPointRadius));
+      for (int i = 0; i < circleCount; i++) {
+        _drawCircle(radius, Vector.radians(i * 45 + angleOffset), ringRadius);
+      }
+    }
+
+    if (_iteration % 2 == 0) {
+      double innerRingPercentage = animation.value * fractionInnerRingRadius;
+      double outerRingPercentage = fractionInnerRingRadius +
+          animation.value * (1 - fractionInnerRingRadius);
+      double exitingRingPercentage = 1 + animation.value;
+      _drawCircleRing(offset, innerRingPercentage);
+      if (_iteration >= 1) _drawCircleRing(0, outerRingPercentage);
+      if (_iteration >= 3) _drawCircleRing(0, exitingRingPercentage);
+    } else {
+      offset = offset * (1 - animation.value);
+      _drawCircleRing(offset, fractionInnerRingRadius);
+      if (_iteration >= 2) _drawCircleRing(0, 1);
+    }
   }
 
   @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => true;
+  bool shouldRepaint(CustomPainter oldDelegate) {
+    return true;
+  }
 }
